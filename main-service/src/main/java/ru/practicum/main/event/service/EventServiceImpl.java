@@ -316,15 +316,29 @@ public class EventServiceImpl implements EventService {
             eventParamsDto.setCategories(null);
         }
 
-        List<Event> events = eventRepository.findByPublicParams(
-                eventParamsDto.getText(),
-                eventParamsDto.getCategories(),
-                eventParamsDto.getPaid(),
-                eventParamsDto.getRangeStart(),
-                eventParamsDto.getRangeEnd(),
-                eventParamsDto.getFrom(),
-                eventParamsDto.getSize()
-        );
+        List<Event> events;
+        if (eventParamsDto.getText() == null || eventParamsDto.getText().isBlank()) {
+            events = eventRepository.findByPublicParamsNoText(
+                    eventParamsDto.getCategories(),
+                    eventParamsDto.getPaid(),
+                    eventParamsDto.getRangeStart(),
+                    eventParamsDto.getRangeEnd(),
+                    eventParamsDto.getFrom(),
+                    eventParamsDto.getSize()
+            );
+        } else {
+            events = eventRepository.findByPublicParams(
+                    eventParamsDto.getText(),
+                    eventParamsDto.getCategories(),
+                    eventParamsDto.getPaid(),
+                    eventParamsDto.getRangeStart(),
+                    eventParamsDto.getRangeEnd(),
+                    eventParamsDto.getFrom(),
+                    eventParamsDto.getSize()
+            );
+        }
+
+
 
         // Get views
         List<String> uris = events.stream()
