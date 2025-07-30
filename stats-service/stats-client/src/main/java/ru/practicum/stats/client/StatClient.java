@@ -17,7 +17,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class StatClient {
     private final RestClient restClient;
-    public static final String DATE_TIME_FORMAT = "yyyy-MM-dd HH:mm:ss";
+    public static final String DATE_TIME_PATTERN = "yyyy-MM-dd HH:mm:ss";
 
     public void addStat(EndpointHitDto endpointHitDto) {
         restClient.post()
@@ -29,8 +29,8 @@ public class StatClient {
 
     public List<ViewStatsDto> getViewStats(LocalDateTime start, LocalDateTime end, List<String> uris, boolean unique) {
         UriComponentsBuilder uriBuilder = UriComponentsBuilder.fromPath("/stats")
-                .queryParam("start", start.format(DateTimeFormatter.ofPattern(DATE_TIME_FORMAT)))
-                .queryParam("end", end.format(DateTimeFormatter.ofPattern(DATE_TIME_FORMAT)))
+                .queryParam("start", start.format(DateTimeFormatter.ofPattern(DATE_TIME_PATTERN)))
+                .queryParam("end", end.format(DateTimeFormatter.ofPattern(DATE_TIME_PATTERN)))
                 .queryParam("unique", unique);
         if (uris != null && !uris.isEmpty()) {
             uris.forEach(uri -> uriBuilder.queryParam("uris", uri));
