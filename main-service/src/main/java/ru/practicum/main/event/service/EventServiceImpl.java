@@ -1,5 +1,6 @@
 package ru.practicum.main.event.service;
 
+import com.querydsl.core.BooleanBuilder;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -13,6 +14,7 @@ import ru.practicum.main.event.dto.*;
 import ru.practicum.main.event.model.Event;
 import ru.practicum.main.event.model.EventState;
 import ru.practicum.main.event.model.Location;
+import ru.practicum.main.event.model.QEvent;
 import ru.practicum.main.exception.ConflictCommonException;
 import ru.practicum.main.exception.NotFoundException;
 import ru.practicum.main.exception.ValidationException;
@@ -65,7 +67,6 @@ public class EventServiceImpl implements EventService {
         Event event = eventRepository.findById(eventId)
                 .orElseThrow(() -> new NotFoundException("Event not found by id: " + eventId));
         if (!userId.equals(event.getInitiator().getId())) {
-            //throw new ValidationException("User with id: " + userId + " isn't a initiator of Event with id: " + eventId);
             throw new ConflictCommonException("User with id: " + userId + " isn't a initiator of Event with id: " + eventId);
         }
         if (event.getState().equals(EventState.PUBLISHED)) {
@@ -160,7 +161,6 @@ public class EventServiceImpl implements EventService {
         Event event = eventRepository.findById(eventId)
                 .orElseThrow(() -> new NotFoundException("Event not found by id: " + eventId));
         if (!userId.equals(event.getInitiator().getId())) {
-            //throw new ValidationException("User with id: " + userId + " isn't a initiator of Event with id: " + eventId);
             throw new ConflictCommonException("User with id: " + userId + " isn't a initiator of Event with id: " + eventId);
         }
 
@@ -268,22 +268,36 @@ public class EventServiceImpl implements EventService {
                     .map(EventState::valueOf)
                     .toList();
         }
-        if ((eventParamsDto.getUsers() == null) || (eventParamsDto.getUsers().isEmpty())) {
-            eventParamsDto.setUsers(null);
-        }
-        if ((eventParamsDto.getCategories() == null) || (eventParamsDto.getCategories().isEmpty())) {
-            eventParamsDto.setCategories(null);
+
+        BooleanBuilder booleanBuilder = new BooleanBuilder();
+        if (eventParamsDto.getUsers() != null) {
+            booleanBuilder.and(QEvent.event.initiator.id.in(eventParamsDto.getUsers()));
         }
 
-        List<Event> events = eventRepository.findByAdminParams(
-                eventParamsDto.getUsers(),
-                states,
-                eventParamsDto.getCategories(),
-                eventParamsDto.getRangeStart(),
-                eventParamsDto.getRangeEnd(),
-                eventParamsDto.getFrom(),
-                eventParamsDto.getSize()
-        );
+        if (eventParamsDto.getStates() != null) {
+            booleanBuilder.and(QEvent.event.state.in(states));
+        }
+
+        if (eventParamsDto.getCategories() != null) {
+            booleanBuilder.and(QEvent.event.category.id.in(eventParamsDto.getCategories()));
+        }
+
+        if ((eventParamsDto.getRangeStart() == null) && (eventParamsDto.getRangeEnd() == null)) {
+            booleanBuilder.and(QEvent.event.eventDate.after(LocalDateTime.now()));
+        } else if (eventParamsDto.getRangeStart() == null) {
+            booleanBuilder.and(QEvent.event.eventDate.between(LocalDateTime.now(), eventParamsDto.getRangeEnd()));
+        } else if (eventParamsDto.getRangeEnd() == null) {
+            booleanBuilder.and(QEvent.event.eventDate.after(eventParamsDto.getRangeStart()));
+        } else {
+            booleanBuilder.and(QEvent.event.eventDate.between(eventParamsDto.getRangeStart(),
+                    eventParamsDto.getRangeEnd()));
+        }
+
+        List<Event> events = eventRepository.findAll(
+                booleanBuilder,
+                PageRequest.of(eventParamsDto.getFrom(), eventParamsDto.getSize(),
+                        Sort.by("createdOn").ascending())
+        ).getContent();
 
         // Get views
         List<String> uris = events.stream()
@@ -312,33 +326,43 @@ public class EventServiceImpl implements EventService {
                 && (eventParamsDto.getCategories().stream().anyMatch(c -> c < 0))) {
             throw new ValidationException("The value of the category id cannot be negative");
         }
-        if ((eventParamsDto.getCategories() == null) || (eventParamsDto.getCategories().isEmpty())) {
-            eventParamsDto.setCategories(null);
+
+        BooleanBuilder booleanBuilder = new BooleanBuilder();
+        if (eventParamsDto.getText() != null) {
+            booleanBuilder.and(QEvent.event.annotation.containsIgnoreCase(eventParamsDto.getText())
+                    .or(QEvent.event.description.containsIgnoreCase(eventParamsDto.getText())));
         }
 
-        List<Event> events;
-        if (eventParamsDto.getText() == null || eventParamsDto.getText().isBlank()) {
-            events = eventRepository.findByPublicParamsNoText(
-                    eventParamsDto.getCategories(),
-                    eventParamsDto.getPaid(),
-                    eventParamsDto.getRangeStart(),
-                    eventParamsDto.getRangeEnd(),
-                    eventParamsDto.getFrom(),
-                    eventParamsDto.getSize()
-            );
+        if (eventParamsDto.getCategories() != null) {
+            booleanBuilder.and(QEvent.event.category.id.in(eventParamsDto.getCategories()));
+        }
+
+        if (eventParamsDto.getPaid() != null) {
+            booleanBuilder.and(QEvent.event.paid.eq(eventParamsDto.getPaid()));
+        }
+
+        if ((eventParamsDto.getRangeStart() == null) && (eventParamsDto.getRangeEnd() == null)) {
+            booleanBuilder.and(QEvent.event.eventDate.after(LocalDateTime.now()));
+        } else if (eventParamsDto.getRangeStart() == null) {
+            booleanBuilder.and(QEvent.event.eventDate.between(LocalDateTime.now(), eventParamsDto.getRangeEnd()));
+        } else if (eventParamsDto.getRangeEnd() == null) {
+            booleanBuilder.and(QEvent.event.eventDate.after(eventParamsDto.getRangeStart()));
         } else {
-            events = eventRepository.findByPublicParams(
-                    eventParamsDto.getText(),
-                    eventParamsDto.getCategories(),
-                    eventParamsDto.getPaid(),
-                    eventParamsDto.getRangeStart(),
-                    eventParamsDto.getRangeEnd(),
-                    eventParamsDto.getFrom(),
-                    eventParamsDto.getSize()
-            );
+            booleanBuilder.and(QEvent.event.eventDate.between(eventParamsDto.getRangeStart(),
+                    eventParamsDto.getRangeEnd()));
         }
 
+        if (eventParamsDto.getOnlyAvailable()) {
+            booleanBuilder.and(QEvent.event.participantLimit.gt(QEvent.event.confirmedRequests));
+        }
 
+        booleanBuilder.and(QEvent.event.state.eq(EventState.PUBLISHED));
+
+        List<Event> events = eventRepository.findAll(
+                booleanBuilder,
+                PageRequest.of(eventParamsDto.getFrom(), eventParamsDto.getSize(),
+                        Sort.by("createdOn").ascending())
+        ).getContent();
 
         // Get views
         List<String> uris = events.stream()
